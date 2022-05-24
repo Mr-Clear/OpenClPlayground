@@ -158,7 +158,8 @@ int main()
     glfwSetErrorCallback(glfw_error_callback);
 
     window = glfwCreateWindow(wind_width, wind_height, "Julia Sets", monitor, nullptr);
-    if (!window) {
+    if (!window)
+    {
         glfwTerminate();
         return 254;
     }
