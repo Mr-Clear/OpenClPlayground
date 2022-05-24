@@ -9,8 +9,10 @@
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #pragma GCC diagnostic ignored "-Wignored-qualifiers"
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#include <CL/cl2.hpp>
+#include <CL/opencl.hpp>
 #pragma GCC diagnostic pop
+
+#include <string>
 
 #if defined (__APPLE__) || defined(MACOSX)
 static const std::string CL_GL_SHARING_EXT = "cl_APPLE_gl_sharing";

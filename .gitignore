@@ -4,3 +4,4 @@ temp/
 *.sdf
 *.suo
 bin/
+CMakeLists.txt.user

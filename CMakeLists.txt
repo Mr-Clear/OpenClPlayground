@@ -16,6 +16,7 @@ endif()
 find_package(glfw3 3.3 REQUIRED)
 find_package(OpenCL 1.2 REQUIRED)
 find_package(OpenGL 3.3 REQUIRED)
+find_package(fmt REQUIRED)
 
 if(APPLE)
     find_package(X11 REQUIRED)
@@ -60,6 +61,7 @@ macro(BUILD_EXAMPLE EXAMPLE_NAME EXAMPLE_SOURCE OUT_DIR_NAME)
         ${CMAKE_DL_LIBS}
         glad-interface
         $<$<PLATFORM_ID:Darwin>:X11::x11>
+        fmt
         )
     target_compile_definitions(${EXAMPLE_NAME}
         PRIVATE
