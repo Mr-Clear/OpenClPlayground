@@ -150,14 +150,14 @@ int main()
     glfwWindowHint(GLFW_BLUE_BITS   , mode->blueBits   );
     glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
 
-    wind_width  = mode->width;
-    wind_height = mode->height;
+    wind_width  = mode->width - 100;
+    wind_height = mode->height - 100;
 
     GLFWwindow* window;
 
     glfwSetErrorCallback(glfw_error_callback);
 
-    window = glfwCreateWindow(wind_width, wind_height, "Julia Sets", monitor, nullptr);
+    window = glfwCreateWindow(wind_width, wind_height, "Julia Sets", nullptr, nullptr);
     if (!window)
     {
         glfwTerminate();
