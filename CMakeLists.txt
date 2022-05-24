@@ -43,12 +43,16 @@ endif()
 add_subdirectory(external_sources/glad)
 
 file(GLOB common_src "common/*.cpp")
+file(GLOB common_h "common/*.h")
+file(GLOB assets_src "assets/*")
 file(GLOB examples_src "examples/*.cpp")
 
 macro(BUILD_EXAMPLE EXAMPLE_NAME EXAMPLE_SOURCE OUT_DIR_NAME)
     add_executable(${EXAMPLE_NAME}
         ${EXAMPLE_SOURCE}
         ${common_src}
+        ${common_h}
+        ${assets_src}
         )
     target_include_directories(${EXAMPLE_NAME}
         PRIVATE ${CMAKE_SOURCE_DIR}

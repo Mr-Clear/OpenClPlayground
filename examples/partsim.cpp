@@ -35,10 +35,10 @@ using namespace cl;
 
 using uint = unsigned int;
 
-static int const wind_width = 640;
-static int const wind_height= 480;
-static float const percent  = 0.02;
-static int const nparticles = percent * wind_width * wind_height;
+static int constexpr wind_width = 640;
+static int constexpr wind_height= 480;
+static float constexpr percent  = 0.02;
+static int constexpr nparticles = percent * wind_width * wind_height;
 
 static const std::array<float, 16> matrix =
 {
@@ -50,17 +50,17 @@ static const std::array<float, 16> matrix =
 
 struct process_params
 {
-    Device d;
-    CommandQueue q;
-    Program p;
-    Kernel k;
-    Buffer i;
+    Device device;
+    CommandQueue commandQueue;
+    Program program;
+    Kernel kernel;
+    Buffer buffer;
     std::array<size_t, 3> dims = {};
 };
 
 struct render_params
 {
-    GLuint prg = 0;
+    GLuint program = 0;
     GLuint vao = 0;
     GLuint vbo = 0;
     BufferGL tmp;
@@ -90,7 +90,7 @@ static void glfw_framebuffer_size_callback(GLFWwindow* wind, int width, int heig
 void processTimeStep();
 void renderFrame();
 
-int main(int, char * [])
+int main(int, char*[])
 {
     GLFWwindow* window;
 
@@ -126,7 +126,8 @@ int main(int, char * [])
         };
 #endif
 #ifdef OS_WIN
-        cl_context_properties cps[] = {
+        std::array<cl_context_properties, 7> cps =
+        {
             CL_GL_CONTEXT_KHR, reinterpret_cast<cl_context_properties>(glfwGetWGLContext(window)),
             CL_WGL_HDC_KHR, reinterpret_cast<cl_context_properties>(GetDC(glfwGetWin32Window(window))),
             CL_CONTEXT_PLATFORM, reinterpret_cast<cl_context_properties>(lPlatform()),
@@ -140,29 +141,31 @@ int main(int, char * [])
         {
             if (checkExtnAvailability(device, CL_GL_SHARING_EXT))
             {
-                params.d = device;
+                params.device = device;
                 break;
             }
         }
-        Context context(params.d, cps.data());
+        Context context(params.device, cps.data());
         // Create a command queue and use the first device
-        params.q = CommandQueue(context, params.d);
-        params.p = getProgram(context, ASSETS_DIR"/random.cl", errCode);
-        params.p.build(std::vector<Device>(1, params.d));
-        params.k = Kernel(params.p, "random");
+        params.commandQueue = CommandQueue(context, params.device);
+        params.program = getProgram(context, ASSETS_DIR"/random.cl", errCode);
+        params.program.build(std::vector<Device>(1, params.device));
+        params.kernel = Kernel(params.program, "random");
         // create opengl stuff
-        rparams.prg = initShaders(ASSETS_DIR"/partsim.vert", ASSETS_DIR"/partsim.frag");
+        rparams.program = initShaders(ASSETS_DIR"/partsim.vert", ASSETS_DIR"/partsim.frag");
 
         std::random_device rd;
         std::mt19937 eng(rd());
-        std::normal_distribution<> dist(10, 100);
-        std::vector<float> data(2 * nparticles);
-        for(int n=0; n<nparticles; ++n) {
-            data[2 * n+0] = std::fmod(dist(eng), wind_width)/wind_width;
-            data[2 * n+1] = std::fmod(dist(eng), wind_height)/wind_height;
+        std::uniform_real_distribution<> distWidth(10, 100);
+        std::uniform_real_distribution<> distHeight(10, 100);
+        std::array<float, 2 * nparticles> data{};
+        for(int n = 0; n < nparticles; ++n)
+        {
+            data[2 * n + 0] = distWidth(eng);
+            data[2 * n + 1] = distHeight(eng);
         }
 
-        rparams.vbo = createBuffer(2 * nparticles, data.data(), GL_DYNAMIC_DRAW);
+        rparams.vbo = createBuffer(data.size(), data.data(), GL_DYNAMIC_DRAW);
         rparams.tmp = BufferGL(context, CL_MEM_READ_WRITE, rparams.vbo, nullptr);
         // bind vao
         glGenVertexArrays(1, &rparams.vao);
@@ -173,14 +176,16 @@ int main(int, char * [])
         glEnableVertexAttribArray(0);
         glBindVertexArray(0);
         // create opencl input and output buffer
-        params.i = Buffer(context, CL_MEM_READ_WRITE, sizeof(float) * 2 * nparticles);
-        params.q.enqueueWriteBuffer(params.i, CL_TRUE, 0, sizeof(float) * 2 * nparticles, data.data());
+        params.buffer = Buffer(context, CL_MEM_READ_WRITE, sizeof(data));
+        params.commandQueue.enqueueWriteBuffer(params.buffer, CL_TRUE, 0, sizeof(data), data.data());
         params.dims[0] = nparticles;
         params.dims[1] = 1;
         params.dims[2] = 1;
-    } catch(Error error) {
+    }
+    catch(Error error)
+    {
         std::cout << error.what() << "(" << error.err() << ")" << std::endl;
-        std::string val = params.p.getBuildInfo<CL_PROGRAM_BUILD_LOG>(params.d);
+        std::string val = params.program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(params.device);
         std::cout << "Log:\n" << val << std::endl;
         return 249;
     }
@@ -188,7 +193,8 @@ int main(int, char * [])
     glfwSetKeyCallback(window, glfw_key_callback);
     glfwSetFramebufferSizeCallback(window, glfw_framebuffer_size_callback);
 
-    while (!glfwWindowShouldClose(window)) {
+    while (!glfwWindowShouldClose(window))
+    {
         // process call
         processTimeStep();
         // render call
@@ -207,44 +213,46 @@ int main(int, char * [])
 
 inline unsigned divup(unsigned a, unsigned b)
 {
-    return (a+b-1)/b;
+    return (a + b - 1) / b;
 }
 
 void processTimeStep()
 {
+    static int seed = std::rand();
     cl::Event ev;
     try
     {
         NDRange local(16);
         NDRange global(16 * divup(params.dims[0], 16));
         // set kernel arguments
-        params.k.setArg(0, params.i);
-        params.k.setArg(1, wind_width);
-        params.k.setArg(2, wind_height);
-        params.k.setArg(3, std::abs(std::rand()));
-        params.q.enqueueNDRangeKernel(params.k, cl::NullRange, global, local);
+        params.kernel.setArg(0, params.buffer);
+        params.kernel.setArg(1, wind_width);
+        params.kernel.setArg(2, wind_height);
+        params.kernel.setArg(3, ++seed);
+        params.commandQueue.enqueueNDRangeKernel(params.kernel, cl::NullRange, global, local);
 
         glFinish();
         std::vector<Memory> objs;
         objs.clear();
         objs.push_back(rparams.tmp);
         // flush opengl commands and wait for object acquisition
-        cl_int res = params.q.enqueueAcquireGLObjects(&objs, nullptr, &ev);
+        cl_int res = params.commandQueue.enqueueAcquireGLObjects(&objs, nullptr, &ev);
         ev.wait();
         if (res != CL_SUCCESS)
         {
             std::cout << "Failed acquiring GL object: " << res << std::endl;
             exit(248);
         }
-        params.q.enqueueCopyBuffer(params.i, rparams.tmp, 0, 0, 2 * nparticles * sizeof(float), nullptr, nullptr);
+        params.commandQueue.enqueueCopyBuffer(params.buffer, rparams.tmp, 0, 0, 2 * nparticles * sizeof(float), nullptr, nullptr);
         // release opengl object
-        res = params.q.enqueueReleaseGLObjects(&objs);
+        res = params.commandQueue.enqueueReleaseGLObjects(&objs);
         ev.wait();
-        if (res != CL_SUCCESS) {
+        if (res != CL_SUCCESS)
+        {
             std::cout << "Failed releasing GL object: " << res << std::endl;
             exit(247);
         }
-        params.q.finish();
+        params.commandQueue.finish();
     }
     catch(Error err)
     {
@@ -259,10 +267,10 @@ void renderFrame()
     glClearColor(0.2, 0.2, 0.2, 1.0);
     glEnable(GL_DEPTH_TEST);
     // bind shader
-    glUseProgram(rparams.prg);
+    glUseProgram(rparams.program);
     // get uniform locations
-    int mat_loc = glGetUniformLocation(rparams.prg, "matrix");
-    int col_loc = glGetUniformLocation(rparams.prg, "color");
+    int mat_loc = glGetUniformLocation(rparams.program, "matrix");
+    int col_loc = glGetUniformLocation(rparams.program, "color");
     // set project matrix
     glUniformMatrix4fv(mat_loc, 1, GL_FALSE, matrix.data());
     glUniform4fv(col_loc, 1, pcolor.data());

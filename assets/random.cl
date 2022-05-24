@@ -8,11 +8,9 @@ float rand(int x)
 }
 
 kernel
-void random(global float* positions,
-        int const dimx, int const dimy,
-        uint const seed)
+void random(global float* positions, int const dimx, int const dimy, uint const seed)
 {
     int id = get_global_id(0);
-    positions[2*id+0] = rand(seed * id);
-    positions[2*id+1] = rand(seed ^ id);
+    positions[2 * id + 0] = rand(seed * id);
+    positions[2 * id + 1] = rand(seed ^ id);
 }
