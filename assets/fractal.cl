@@ -34,7 +34,7 @@ void fractal(write_only image2d_t out, int dim0, int dim1, float scalex, float s
 
     float2 scale     = (float2)(scalex, scaley);
     float2 translate = (float2)(movex, movey);
-    float2 npos      = (float2)((gx-h0)/h0, (gy-h1)/h1);
+    float2 npos      = (float2)((gx - h0) / h0, (gy - h1) / h1);
     float2 center    = (float2)(centerx, centery);
 
     npos = npos * scale + translate;
@@ -42,7 +42,7 @@ void fractal(write_only image2d_t out, int dim0, int dim1, float scalex, float s
     if (gx<dim0 && gy<dim1)
     {
         int iteration   = isInside(npos, center);
-        int colorIndex  = iteration%NUM_COLORS;
+        int colorIndex  = iteration % NUM_COLORS;
         write_imagef(out, (int2)(gx, gy), SPECTRUM[NUM_COLORS - 1 - colorIndex]);
     }
 }

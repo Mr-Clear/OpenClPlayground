@@ -7,7 +7,8 @@ uniform mat4 matrix;
 
 out vec2 texcoord;
 
-void main() {
+void main()
+{
     texcoord = tex;
-    gl_Position = matrix * vec4(pos,1.0);
+    gl_Position = vec4(pos.x, pos.y, 0, 1.0);
 }

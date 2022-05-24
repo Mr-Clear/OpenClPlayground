@@ -221,7 +221,7 @@ int main()
         GLuint ibo;
         glGenBuffers(1, &ibo);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices) * 6, indices.data(), GL_STATIC_DRAW);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices.data(), GL_STATIC_DRAW);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         // bind vao
         glGenVertexArrays(1, &rparams.vao);
@@ -255,7 +255,8 @@ int main()
     glfwSetKeyCallback(window, glfw_key_callback);
     glfwSetFramebufferSizeCallback(window, glfw_framebuffer_size_callback);
 
-    while (!glfwWindowShouldClose(window)) {
+    while (!glfwWindowShouldClose(window))
+    {
         // process call
         processTimeStep();
         // render call
@@ -280,7 +281,8 @@ inline unsigned divup(unsigned a, unsigned b)
 void processTimeStep()
 {
     cl::Event ev;
-    try {
+    try
+    {
         glFinish();
 
         std::vector<Memory> objs;
@@ -328,7 +330,7 @@ void renderFrame()
     // bind shader
     glUseProgram(rparams.prg);
     // get uniform locations
-    int mat_loc = glGetUniformLocation(rparams.prg, "matrix");
+    int mat_loc = glGetUniformLocation(rparams.prg, "pos");
     int tex_loc = glGetUniformLocation(rparams.prg, "tex");
     // bind texture
     glActiveTexture(GL_TEXTURE0);
