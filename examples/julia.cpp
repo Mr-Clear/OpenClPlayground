@@ -1,3 +1,9 @@
+
+#include "common/Board.h"
+#include "common/OpenClTypes.h"
+
+#include "assets/Actor.h"
+
 #include <glad/glad.h>
 
 #include <common/OpenCLUtil.h>
@@ -60,32 +66,22 @@ static const std::array<float, 8> texcords =
 
 static const std::array<uint, 6> indices = {0, 1, 2, 0, 2, 3};
 
-static const std::array<float, 20> CJULIA =
-{
-    -0.700f, 0.270f,
-    -0.618f, 0.000f,
-    -0.400f, 0.600f,
-     0.285f, 0.000f,
-     0.285f, 0.010f,
-     0.450f, 0.143f,
-    -0.702f, -0.384f,
-    -0.835f, -0.232f,
-    -0.800f, 0.156f,
-     0.279f, 0.000f
-};
-
-static int wind_width = 720;
-static int wind_height= 720;
-static int gJuliaSetIndex = 0;
+static int boardWidth = 0;
+static int boardHeight = 0;
 
 struct process_params
 {
     Device device;
     CommandQueue queue;
-    Program pprogram;
-    Kernel kernel;
+    Program boardProgram;
+    Kernel boardKernel;
+    Program actorProgram;
+    Kernel actorKernel;
     ImageGL tex;
-    std::array<size_t, 3> dims = {};
+    Buffer cells;
+    int2 boardSize{};
+    Buffer actors;
+    int actorSize = 0;
 };
 
 struct render_params
@@ -108,24 +104,6 @@ static void glfw_key_callback(GLFWwindow* wind, int key, int scancode, int actio
     if (action == GLFW_PRESS) {
         if (key == GLFW_KEY_ESCAPE)
             glfwSetWindowShouldClose(wind, GL_TRUE);
-        else if (key == GLFW_KEY_1)
-            gJuliaSetIndex = 0;
-        else if (key == GLFW_KEY_2)
-            gJuliaSetIndex = 1;
-        else if (key == GLFW_KEY_3)
-            gJuliaSetIndex = 2;
-        else if (key == GLFW_KEY_4)
-            gJuliaSetIndex = 3;
-        else if (key == GLFW_KEY_5)
-            gJuliaSetIndex = 4;
-        else if (key == GLFW_KEY_6)
-            gJuliaSetIndex = 5;
-        else if (key == GLFW_KEY_7)
-            gJuliaSetIndex = 6;
-        else if (key == GLFW_KEY_8)
-            gJuliaSetIndex = 7;
-        else if (key == GLFW_KEY_9)
-            gJuliaSetIndex = 8;
     }
 }
 
@@ -150,14 +128,30 @@ int main()
     glfwWindowHint(GLFW_BLUE_BITS   , mode->blueBits   );
     glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
 
-    wind_width  = mode->width - 100;
-    wind_height = mode->height - 100;
+    boardWidth  = mode->width - 100;
+    boardHeight = mode->height - 100;
+    float2 center{boardWidth / 2.f, boardHeight / 2.f};
+
+    Board board(boardWidth, boardHeight);
+    for (int y = 0; y < boardHeight; ++y)
+        for (int x = 0; x < boardWidth; ++x)
+        {
+            float2 pos(x, y);
+            board(x, y).solid = (center - pos).length() > boardHeight / 2.1;
+        }
+
+    std::vector<Actor> actors(10, Actor{{0, 0}, {0, 0}, false});
+    actors.at(0).alive = true;
+    actors.at(0).pos = {450, 500};
+    actors.at(0).speed = {.1, 0.5};
+
+    cout << sizeof(float2) << " " << sizeof(Actor) << endl;
 
     GLFWwindow* window;
 
     glfwSetErrorCallback(glfw_error_callback);
 
-    window = glfwCreateWindow(wind_width, wind_height, "Julia Sets", nullptr, nullptr);
+    window = glfwCreateWindow(boardWidth, boardHeight, "Test", nullptr, nullptr);
     if (!window)
     {
         glfwTerminate();
@@ -171,87 +165,113 @@ int main()
     cout << fmt::format("OpenGL {}.{}", GLVersion.major, GLVersion.minor) << endl;
 
     cl_int errCode;
-    try {
-        Platform lPlatform = getPlatform();
-        // Select the default platform and create a context using this platform and the GPU
+
+    Platform lPlatform = getPlatform();
+    // Select the default platform and create a context using this platform and the GPU
 #ifdef OS_LNX
-        std::array<cl_context_properties, 7> cps =
-        {
-            CL_GL_CONTEXT_KHR, reinterpret_cast<cl_context_properties>(glfwGetGLXContext(window)),
-            CL_GLX_DISPLAY_KHR, reinterpret_cast<cl_context_properties>(glfwGetX11Display()),
-            CL_CONTEXT_PLATFORM, reinterpret_cast<cl_context_properties>(lPlatform()),
-            0
-        };
+    std::array<cl_context_properties, 7> cps =
+    {
+        CL_GL_CONTEXT_KHR, reinterpret_cast<cl_context_properties>(glfwGetGLXContext(window)),
+        CL_GLX_DISPLAY_KHR, reinterpret_cast<cl_context_properties>(glfwGetX11Display()),
+        CL_CONTEXT_PLATFORM, reinterpret_cast<cl_context_properties>(lPlatform()),
+        0
+    };
 #endif
 #ifdef OS_WIN
-        std::array<cl_context_properties, 7> cps =
-        {
-            CL_GL_CONTEXT_KHR, reinterpret_cast<cl_context_properties>(glfwGetWGLContext(window)),
-            CL_WGL_HDC_KHR, reinterpret_cast<cl_context_properties>(GetDC(glfwGetWin32Window(window))),
-            CL_CONTEXT_PLATFORM, reinterpret_cast<cl_context_properties>(lPlatform()),
-            0
-        };
+    std::array<cl_context_properties, 7> cps =
+    {
+        CL_GL_CONTEXT_KHR, reinterpret_cast<cl_context_properties>(glfwGetWGLContext(window)),
+        CL_WGL_HDC_KHR, reinterpret_cast<cl_context_properties>(GetDC(glfwGetWin32Window(window))),
+        CL_CONTEXT_PLATFORM, reinterpret_cast<cl_context_properties>(lPlatform()),
+        0
+    };
 #endif
-        std::vector<Device> devices;
-        lPlatform.getDevices(CL_DEVICE_TYPE_GPU, &devices);
-        // Get a list of devices on this platform
-        for (auto & device : devices)
+    std::vector<Device> devices;
+    lPlatform.getDevices(CL_DEVICE_TYPE_GPU, &devices);
+    // Get a list of devices on this platform
+    for (auto & device : devices)
+    {
+        if (checkExtnAvailability(device, CL_GL_SHARING_EXT))
         {
-            if (checkExtnAvailability(device, CL_GL_SHARING_EXT))
-            {
-                params.device = device;
-                break;
-            }
+            params.device = device;
+            break;
         }
-        Context context(params.device, cps.data());
-        // Create a command queue and use the first device
-        params.queue = CommandQueue(context, params.device);
-        params.pprogram = getProgram(context, ASSETS_DIR "/fractal.cl", errCode);
+    }
+    Context context(params.device, cps.data());
+    // Create a command queue and use the first device
+    params.queue = CommandQueue(context, params.device);
+    params.boardProgram = getProgram(context, ASSETS_DIR"/board.cl", errCode);
+    params.actorProgram = getProgram(context, ASSETS_DIR"/Actor.cl", errCode);
 
-        std::ostringstream options;
-        options << "-I " << std::string(ASSETS_DIR);
+    std::ostringstream options;
+    options << "-I " << std::string(ASSETS_DIR);
 
-        params.pprogram.build(std::vector<Device>(1, params.device), options.str().c_str());
-        params.kernel = Kernel(params.pprogram, "fractal");
-        // create opengl stuff
-        rparams.prg = initShaders(ASSETS_DIR "/fractal.vert", ASSETS_DIR "/fractal.frag");
-        rparams.tex = createTexture2D(wind_width, wind_height);
-        GLuint vbo  = createBuffer(12, vertices.data(), GL_STATIC_DRAW);
-        GLuint tbo  = createBuffer(8,  texcords.data(), GL_STATIC_DRAW);
-        GLuint ibo;
-        glGenBuffers(1, &ibo);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices.data(), GL_STATIC_DRAW);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        // bind vao
-        glGenVertexArrays(1, &rparams.vao);
-        glBindVertexArray(rparams.vao);
-        // attach vbo
-        glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
-        glEnableVertexAttribArray(0);
-        // attach tbo
-        glBindBuffer(GL_ARRAY_BUFFER, tbo);
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
-        glEnableVertexAttribArray(1);
-        // attach ibo
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-        glBindVertexArray(0);
-        // create opengl texture reference using opengl texture
-        params.tex = ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, rparams.tex, &errCode);
-        if (errCode != CL_SUCCESS)
-            throw Exception(fmt::format( "Failed to create OpenGL texture refrence: {}", errCode));
-        params.dims[0] = wind_width;
-        params.dims[1] = wind_height;
-        params.dims[2] = 1;
+    try
+    {
+        params.boardProgram.build(std::vector<Device>(1, params.device), options.str().c_str());
     }
     catch(Error error)
     {
         std::cout << error.what() << "(" << error.err() << ")\n"
-                  << "Log:\n" << params.pprogram.getBuildInfo<CL_PROGRAM_BUILD_LOG>(params.device) << std::endl;
+                  << "Log:\n" << params.boardProgram.getBuildInfo<CL_PROGRAM_BUILD_LOG>(params.device) << std::endl;
         return 249;
     }
 
+    try
+    {
+        params.actorProgram.build(std::vector<Device>(1, params.device), options.str().c_str());
+    }
+    catch(Error error)
+    {
+        std::cout << error.what() << "(" << error.err() << ")\n"
+                  << "Log:\n" << params.actorProgram.getBuildInfo<CL_PROGRAM_BUILD_LOG>(params.device) << std::endl;
+        return 249;
+    }
+
+    params.boardKernel = Kernel(params.boardProgram, "board");
+    params.actorKernel = Kernel(params.actorProgram, "actor");
+    // create opengl stuff
+    rparams.prg = initShaders(ASSETS_DIR "/board.vert", ASSETS_DIR "/board.frag");
+    rparams.tex = createTexture2D(boardWidth, boardHeight);
+    GLuint vbo  = createBuffer(12, vertices.data(), GL_STATIC_DRAW);
+    GLuint tbo  = createBuffer(8,  texcords.data(), GL_STATIC_DRAW);
+    GLuint ibo;
+    glGenBuffers(1, &ibo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices.data(), GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    // bind vao
+    glGenVertexArrays(1, &rparams.vao);
+    glBindVertexArray(rparams.vao);
+    // attach vbo
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    glEnableVertexAttribArray(0);
+    // attach tbo
+    glBindBuffer(GL_ARRAY_BUFFER, tbo);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+    glEnableVertexAttribArray(1);
+    // attach ibo
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+    glBindVertexArray(0);
+    // create opengl texture reference using opengl texture
+    params.tex = ImageGL(context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, rparams.tex, &errCode);
+    if (errCode != CL_SUCCESS)
+        throw Exception(fmt::format( "Failed to create OpenGL texture refrence: {}", errCode));
+    params.cells = Buffer(context, CL_MEM_READ_WRITE, board.dataSize(), nullptr, &errCode);
+    if (errCode != CL_SUCCESS)
+        throw Exception(fmt::format( "Failed to create OpenGL texture refrence: {}", errCode));
+    params.actors = Buffer(context, CL_MEM_READ_WRITE, sizeof(Actor) * actors.size(), nullptr, &errCode);
+    if (errCode != CL_SUCCESS)
+        throw Exception(fmt::format( "Failed to create OpenGL texture refrence: {}", errCode));
+    params.actorSize = actors.size();
+
+    params.boardSize.x = boardWidth;
+    params.boardSize.y = boardHeight;
+
+    params.queue.enqueueWriteBuffer(params.cells, true, 0, board.dataSize(), board.cells().data());
+    params.queue.enqueueWriteBuffer(params.actors, true, 0, sizeof(Actor) * actors.size(), actors.data());
+    params.queue.finish();
     glfwSetKeyCallback(window, glfw_key_callback);
     glfwSetFramebufferSizeCallback(window, glfw_framebuffer_size_callback);
 
@@ -281,45 +301,41 @@ inline unsigned divup(unsigned a, unsigned b)
 void processTimeStep()
 {
     cl::Event ev;
-    try
-    {
-        glFinish();
+    glFinish();
 
-        std::vector<Memory> objs;
-        objs.clear();
-        objs.push_back(params.tex);
-        // flush opengl commands and wait for object acquisition
-        cl_int res = params.queue.enqueueAcquireGLObjects(&objs, nullptr, &ev);
-        ev.wait();
-        if (res != CL_SUCCESS)
-            throw Exception(fmt::format( "Failed acquiring GL object: {}", res));
+    std::vector<Memory> objs;
+    objs.clear();
+    objs.push_back(params.tex);
+    // flush opengl commands and wait for object acquisition
+    cl_int res = params.queue.enqueueAcquireGLObjects(&objs, nullptr, &ev);
+    ev.wait();
+    if (res != CL_SUCCESS)
+        throw Exception(fmt::format( "Failed acquiring GL object: {}", res));
 
-        NDRange local(16, 16);
-        NDRange global(local[0] * divup(params.dims[0], local[0]),
-                       local[1] * divup(params.dims[1], local[1]));
-        // set kernel arguments
-        params.kernel.setArg(0, params.tex);
-        params.kernel.setArg(1, (int)params.dims[0]);
-        params.kernel.setArg(2, (int)params.dims[1]);
-        params.kernel.setArg(3, 1.0f);
-        params.kernel.setArg(4, 1.0f);
-        params.kernel.setArg(5, 0.0f);
-        params.kernel.setArg(6, 0.0f);
-        params.kernel.setArg(7, CJULIA[2 * gJuliaSetIndex+0]);
-        params.kernel.setArg(8, CJULIA[2 * gJuliaSetIndex+1]);
-        params.queue.enqueueNDRangeKernel(params.kernel, cl::NullRange, global, local);
-        // release opengl object
-        res = params.queue.enqueueReleaseGLObjects(&objs);
-        ev.wait();
-        if (res!=CL_SUCCESS)
-            throw Exception(fmt::format( "Failed releasing GL object: {}", res));
+    NDRange local(16, 16);
+    NDRange global(local[0] * divup(params.boardSize.x, local[0]),
+                   local[1] * divup(params.boardSize.y, local[1]));
+    // set kernel arguments
+    params.boardKernel.setArg(0, params.tex);
+    params.boardKernel.setArg(1, params.cells);
+    params.boardKernel.setArg(2, params.boardSize);
+    params.queue.enqueueNDRangeKernel(params.boardKernel, cl::NullRange, global, local);
 
-        params.queue.finish();
-    }
-    catch(Error err)
-    {
-        std::cout << err.what() << "(" << err.err() << ")" << std::endl;
-    }
+    local = NDRange(16);
+    global = NDRange(local[0] * divup(params.actorSize, local[0]));
+    params.actorKernel.setArg(0, params.cells);
+    params.actorKernel.setArg(1, params.boardSize);
+    params.actorKernel.setArg(2, params.actors);
+    params.actorKernel.setArg(3, params.actorSize);
+    params.queue.enqueueNDRangeKernel(params.actorKernel, cl::NullRange, global, local);
+    // release opengl object
+    res = params.queue.enqueueReleaseGLObjects(&objs);
+
+    ev.wait();
+    if (res!=CL_SUCCESS)
+        throw Exception(fmt::format( "Failed releasing GL object: {}", res));
+
+    params.queue.finish();
 }
 
 void renderFrame()
