@@ -3,7 +3,9 @@
 struct Actor
 {
     float2 pos;
-    float2 speed;
+    float speed;
+    float targetSpeed;
+    float direction;
     bool alive;
-    char _1[4];
+    char _1[0]; // Fix alignment
 };

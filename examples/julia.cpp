@@ -27,9 +27,11 @@
 
 #include <common/OpenGLUtil.h>
 
+#include <chrono>
 #include <cstdlib>
 #include <iostream>
 #include <fstream>
+#include <random>
 #include <sstream>
 #include <string>
 
@@ -112,7 +114,7 @@ static void glfw_framebuffer_size_callback(GLFWwindow* wind, int width, int heig
     glViewport(0, 0, width, height);
 }
 
-void processTimeStep();
+void processTimeStep(int generation);
 void renderFrame();
 
 int main()
@@ -132,20 +134,39 @@ int main()
     boardHeight = mode->height - 100;
     float2 center{boardWidth / 2.f, boardHeight / 2.f};
 
+    std::mt19937_64 rng;
+    uint64_t timeSeed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+    std::seed_seq ss{uint32_t(timeSeed & 0xffffffff), uint32_t(timeSeed>>32)};
+    rng.seed(ss);
+    std::uniform_real_distribution<double> unif(0, 1);
+
     Board board(boardWidth, boardHeight);
     for (int y = 0; y < boardHeight; ++y)
         for (int x = 0; x < boardWidth; ++x)
         {
-            float2 pos(x, y);
-            board(x, y).solid = (center - pos).length() > boardHeight / 2.1;
+            const double divX = min(x, boardWidth - x);
+            const double divY = min(y, boardHeight - y);
+            const double div = 1 / divX + 1 / divY;
+            board(x, y).solid = div > .1;
+            board(x, y).trail = 0;
         }
 
-    std::vector<Actor> actors(10, Actor{{0, 0}, {0, 0}, false});
-    actors.at(0).alive = true;
-    actors.at(0).pos = {450, 500};
-    actors.at(0).speed = {.1, 0.5};
+    std::vector<Actor> actors(1000, Actor{{0, 0}, 0, 0, false});
 
-    cout << sizeof(float2) << " " << sizeof(Actor) << endl;
+
+    std::normal_distribution<> targetSpeedDistribution{.5, .05};
+    for (Actor &a : actors)
+    {
+        a.alive = true;
+        const double r = boardHeight / 2.1 * sqrt(unif(rng));
+        const double theta = unif(rng) * 2 * M_PI;
+        a.pos = {static_cast<float>(center.x + r * cos(theta)), static_cast<float>(center.y + r * sin(theta))};
+        a.speed = 0;
+        a.targetSpeed = targetSpeedDistribution(rng);
+        a.direction = unif(rng) * 2 * M_PI;
+    }
+
+    cout << fmt::format("C++ - sizeof(Cell) = {}, sizeof(Actor) = {}", sizeof(Cell), sizeof(Actor))  << endl;
 
     GLFWwindow* window;
 
@@ -162,7 +183,7 @@ int main()
 
     if(!gladLoadGL())
         throw Exception("gladLoadGL failed!");
-    cout << fmt::format("OpenGL {}.{}", GLVersion.major, GLVersion.minor) << endl;
+    //cout << fmt::format("OpenGL {}.{}", GLVersion.major, GLVersion.minor) << endl;
 
     cl_int errCode;
 
@@ -275,16 +296,22 @@ int main()
     glfwSetKeyCallback(window, glfw_key_callback);
     glfwSetFramebufferSizeCallback(window, glfw_framebuffer_size_callback);
 
+    int generation = 0;
     while (!glfwWindowShouldClose(window))
     {
-        // process call
-        processTimeStep();
+        for (int i = 0; i < 10; ++i)
+        {
+            // process call
+            processTimeStep(generation);
+            ++generation;
+        }
         // render call
         renderFrame();
         // swap front and back buffers
         glfwSwapBuffers(window);
         // poll for events
         glfwPollEvents();
+
     }
 
     glfwDestroyWindow(window);
@@ -298,7 +325,7 @@ inline unsigned divup(unsigned a, unsigned b)
     return (a + b - 1) / b;
 }
 
-void processTimeStep()
+void processTimeStep(int generation)
 {
     cl::Event ev;
     glFinish();
@@ -327,6 +354,7 @@ void processTimeStep()
     params.actorKernel.setArg(1, params.boardSize);
     params.actorKernel.setArg(2, params.actors);
     params.actorKernel.setArg(3, params.actorSize);
+    params.actorKernel.setArg(4, generation);
     params.queue.enqueueNDRangeKernel(params.actorKernel, cl::NullRange, global, local);
     // release opengl object
     res = params.queue.enqueueReleaseGLObjects(&objs);

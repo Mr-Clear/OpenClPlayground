@@ -24,7 +24,7 @@ Platform getPlatform(std::string pName, cl_int &error)
             std::string temp = it->getInfo<CL_PLATFORM_NAME>();
             if (temp.find(pName)!=std::string::npos) {
                 found = it - platforms.begin();
-                std::cout<<"Found platform: "<<temp<<std::endl;
+                //std::cout<<"Found platform: "<<temp<<std::endl;
                 break;
             }
         }
@@ -77,7 +77,7 @@ bool checkExtnAvailability(Device pDevice, std::string pName)
             }
         }
         if (found==1) {
-            std::cout<<"Found CL_GL_SHARING extension: "<<item<<std::endl;
+            //std::cout<<"Found CL_GL_SHARING extension: "<<item<<std::endl;
             ret_val = true;
         } else {
             std::cout<<"CL_GL_SHARING extension not found\n";

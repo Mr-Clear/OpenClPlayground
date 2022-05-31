@@ -3,6 +3,6 @@
 struct Cell
 {
     bool solid;
-    bool visited;
+    float trail;
 };
 
