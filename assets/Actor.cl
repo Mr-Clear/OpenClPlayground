@@ -1,6 +1,6 @@
 #include "Actor.h"
-#include "Cell.h"
 
+#include "Common.cl"
 #include "Random.cl"
 
 bool printSizeof = true;
@@ -35,7 +35,7 @@ void actor(__global struct Cell* board, int2 boardSize, __global struct Actor* a
             a->alive = false;
             return;
         }
-        struct Cell *nextCell = &board[nextI.x + boardSize.x * nextI.y];
+        struct Cell *nextCell = cell(board, boardSize, nextI);
         if (nextCell->solid)
         {
             a->speed = 0;
