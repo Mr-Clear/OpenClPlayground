@@ -3,10 +3,11 @@
 
 #include <glad/glad.h>
 
-typedef struct {
+struct shaders_t
+{
     GLuint vertex;
     GLuint fragment;
-} shaders_t;
+};
 
 char* loadFile(const char *fname, GLint &fSize);
 
@@ -23,7 +24,7 @@ void attachAndLinkProgram( GLuint program, shaders_t shaders);
 
 GLuint initShaders(const char* vshaderpath, const char* fshaderpath);
 
-GLuint createTexture2D(int width, int height, void* data=0);
+GLuint createTexture2D(int width, int height, void* data = nullptr);
 
 GLuint createBuffer(int size, const float* data, GLenum usage);
 

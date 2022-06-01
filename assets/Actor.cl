@@ -24,7 +24,7 @@ void actor(__global struct Cell* board, int2 boardSize, __global struct Actor* a
     {
         //printf("A %d: (%f,%f) - (%f,%f) %d\n", id, a->pos.x, a->pos.y, a->speed.x, a->speed.y, sizeof(struct Actor));
 
-        a->direction = rndNormalF(generation * 31337 + id, a->direction, 0.1);
+        a->direction = rndNormalF(generation * 31337 + id, a->direction, 0.05);
         a->speed = rndNormalF(generation * 7789 + id, a->speed * .99f + a->targetSpeed * .01f, 0.01);
         float2 speedVector = (float2)(cos(a->direction), sin(a->direction)) * a->speed;
         float2 next = a->pos + speedVector;

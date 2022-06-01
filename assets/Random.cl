@@ -1,12 +1,12 @@
 
 uint rnd(uint seed)
 {
-    seed ^= 2747636419u;
-    seed *= 2654435769u;
+    seed ^= 0xA3C59AC3u;
+    seed *= 0x9E3779B9u;
     seed ^= seed >> 16;
-    seed *= 2654435769u;
+    seed *= 0x9E3779B9u;
     seed ^= seed >> 16;
-    seed *= 2654435769u;
+    seed *= 0x9E3779B9u;
     return seed;
 }
 

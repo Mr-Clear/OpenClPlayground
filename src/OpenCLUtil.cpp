@@ -1,4 +1,4 @@
-#include <common/OpenCLUtil.h>
+#include "OpenCLUtil.h"
 
 #include <vector>
 #include <cstdlib>

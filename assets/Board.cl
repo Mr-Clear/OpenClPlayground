@@ -74,15 +74,15 @@ void board(write_only image2d_t out, __global struct Cell* board, int2 size)
         float4 color;
         if (c->solid)
         {
-            color = (float4)(0, 0, 0, 0);
+            color = (float4)(.2, .2, .2, 0);
         }
         else
         {
-            color = (float4)(0, 0.5f, 0, 0);
+            color = (float4)(0, 0, 0, 0);
         }
 
 
-        const float4 trailColor = (float4)(1, 1, 1, 0);
+        const float4 trailColor = (float4)(1, 0, 0, 0);
         float trail = min(1.f, max(0.f, c->trail));
         color = color * (1.f - trail) + trailColor * trail;
 

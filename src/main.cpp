@@ -1,12 +1,11 @@
 
-#include "common/Board.h"
-#include "common/OpenClTypes.h"
-
+#include "OpenClTypes.h"
 #include "assets/Actor.h"
+#include "Board.h"
+#include "Exception.h"
 
-#include <glad/glad.h>
-
-#include <common/OpenCLUtil.h>
+#include "OpenCLUtil.h"
+#include "OpenGLUtil.h"
 
 #ifdef OS_WIN
 #define GLFW_EXPOSE_NATIVE_WIN32
@@ -18,14 +17,12 @@
 #define GLFW_EXPOSE_NATIVE_GLX
 #endif
 
-#include "common/Exception.h"
-
 #include <fmt/core.h>
+
+#include <glad/glad.h>
 
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
-
-#include <common/OpenGLUtil.h>
 
 #include <chrono>
 #include <cstdlib>
@@ -154,7 +151,7 @@ int main()
     std::vector<Actor> actors(1000, Actor{{0, 0}, 0, 0, false});
 
 
-    std::normal_distribution<> targetSpeedDistribution{.5, .05};
+    std::normal_distribution<> targetSpeedDistribution{.5, .1};
     for (Actor &a : actors)
     {
         a.alive = true;
@@ -221,7 +218,7 @@ int main()
     Context context(params.device, cps.data());
     // Create a command queue and use the first device
     params.queue = CommandQueue(context, params.device);
-    params.boardProgram = getProgram(context, ASSETS_DIR"/board.cl", errCode);
+    params.boardProgram = getProgram(context, ASSETS_DIR"/Board.cl", errCode);
     params.actorProgram = getProgram(context, ASSETS_DIR"/Actor.cl", errCode);
 
     std::ostringstream options;
@@ -252,7 +249,7 @@ int main()
     params.boardKernel = Kernel(params.boardProgram, "board");
     params.actorKernel = Kernel(params.actorProgram, "actor");
     // create opengl stuff
-    rparams.prg = initShaders(ASSETS_DIR "/board.vert", ASSETS_DIR "/board.frag");
+    rparams.prg = initShaders(ASSETS_DIR "/Board.vert", ASSETS_DIR "/Board.frag");
     rparams.tex = createTexture2D(boardWidth, boardHeight);
     GLuint vbo  = createBuffer(12, vertices.data(), GL_STATIC_DRAW);
     GLuint tbo  = createBuffer(8,  texcords.data(), GL_STATIC_DRAW);
@@ -299,7 +296,7 @@ int main()
     int generation = 0;
     while (!glfwWindowShouldClose(window))
     {
-        for (int i = 0; i < 10; ++i)
+        for (int i = 0; i < 1; ++i)
         {
             // process call
             processTimeStep(generation);
