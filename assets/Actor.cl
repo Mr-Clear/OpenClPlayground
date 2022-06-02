@@ -22,11 +22,6 @@ void actor(__global struct Cell* board, int2 boardSize, __global struct Actor* a
         const int sc = sizeof(struct Cell);
         const int sa = sizeof(struct Actor);
         printf("OCL - sizeof(Cell) = %d, sizeof(Actor) = %d \n", sc, sa);
-
-        float2 t = (float2)(10, 0);
-        t = rotateVector(t, 0);
-        printf("Rotate: (%f, %f)", t.x, t.y);
-
         printSizeof = false;
     }
 
@@ -41,7 +36,7 @@ void actor(__global struct Cell* board, int2 boardSize, __global struct Actor* a
         a->speed = rndNormalF(generation * 7789 + id, a->speed * .99f + a->targetSpeed * .01f, 0.01);
         float2 speedVector = (float2)(cos(a->direction), sin(a->direction)) * a->speed;
         float2 next = a->pos + speedVector;
-        int2 nextI = convert_int2(next);
+        int2 nextI = toInt2(next);
 
         if (nextI.x > boardSize.x - 1 || nextI.x < 0 || nextI.y > boardSize.y - 1 || nextI.y < 0)
         {
