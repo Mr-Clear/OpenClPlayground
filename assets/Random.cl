@@ -10,6 +10,11 @@ uint rnd(uint seed)
     return seed;
 }
 
+float rndUniform(int seed, int min, int max)
+{
+    return rnd(seed) % (max - min) + min;
+}
+
 float rndUniformF(int seed, float min, float max)
 {
     return (float)rnd(seed) / (float)UINT_MAX * (max - min) + min;

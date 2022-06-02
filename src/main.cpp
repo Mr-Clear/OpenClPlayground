@@ -39,6 +39,9 @@ using uint = unsigned int;
 
 static const uint NUM_JSETS = 9;
 
+const int speed = 10;
+const int actorsCount = 10000;
+
 static const std::array<float, 16> matrix =
 {
     1.0f, 0.0f, 0.0f, 0.0f,
@@ -111,7 +114,7 @@ static void glfw_framebuffer_size_callback(GLFWwindow* wind, int width, int heig
     glViewport(0, 0, width, height);
 }
 
-void processTimeStep(int generation);
+void processTimeStep(int &generation, int runs);
 void renderFrame();
 
 int main()
@@ -148,7 +151,7 @@ int main()
             board(x, y).trail = 0;
         }
 
-    std::vector<Actor> actors(1000, Actor{{0, 0}, 0, 0, false});
+    std::vector<Actor> actors(actorsCount, Actor{{0, 0}, 0, 0, false});
 
 
     std::normal_distribution<> targetSpeedDistribution{.5, .1};
@@ -296,12 +299,8 @@ int main()
     int generation = 0;
     while (!glfwWindowShouldClose(window))
     {
-        for (int i = 0; i < 1; ++i)
-        {
-            // process call
-            processTimeStep(generation);
-            ++generation;
-        }
+        // process call
+        processTimeStep(generation, speed);
         // render call
         renderFrame();
         // swap front and back buffers
@@ -322,7 +321,7 @@ inline unsigned divup(unsigned a, unsigned b)
     return (a + b - 1) / b;
 }
 
-void processTimeStep(int generation)
+void processTimeStep(int &generation, int runs)
 {
     cl::Event ev;
     glFinish();
@@ -336,23 +335,27 @@ void processTimeStep(int generation)
     if (res != CL_SUCCESS)
         throw Exception(fmt::format( "Failed acquiring GL object: {}", res));
 
-    NDRange local(16, 16);
-    NDRange global(local[0] * divup(params.boardSize.x, local[0]),
-                   local[1] * divup(params.boardSize.y, local[1]));
-    // set kernel arguments
-    params.boardKernel.setArg(0, params.tex);
-    params.boardKernel.setArg(1, params.cells);
-    params.boardKernel.setArg(2, params.boardSize);
-    params.queue.enqueueNDRangeKernel(params.boardKernel, cl::NullRange, global, local);
-
-    local = NDRange(16);
-    global = NDRange(local[0] * divup(params.actorSize, local[0]));
+    const NDRange localActor = NDRange(16);
+    const NDRange globalActor = NDRange(localActor[0] * divup(params.actorSize, localActor[0]));
     params.actorKernel.setArg(0, params.cells);
     params.actorKernel.setArg(1, params.boardSize);
     params.actorKernel.setArg(2, params.actors);
     params.actorKernel.setArg(3, params.actorSize);
-    params.actorKernel.setArg(4, generation);
-    params.queue.enqueueNDRangeKernel(params.actorKernel, cl::NullRange, global, local);
+
+    const NDRange localBoard(16, 16);
+    const NDRange globalBoard(localBoard[0] * divup(params.boardSize.x, localBoard[0]),
+                        localBoard[1] * divup(params.boardSize.y, localBoard[1]));
+    params.boardKernel.setArg(0, params.tex);
+    params.boardKernel.setArg(1, params.cells);
+    params.boardKernel.setArg(2, params.boardSize);
+
+    for (int i = 0; i < runs; ++i)
+    {
+        params.actorKernel.setArg(4, generation);
+        params.queue.enqueueNDRangeKernel(params.actorKernel, cl::NullRange, globalActor, localActor);
+        params.queue.enqueueNDRangeKernel(params.boardKernel, cl::NullRange, globalBoard, localBoard);
+        ++generation;
+    }
     // release opengl object
     res = params.queue.enqueueReleaseGLObjects(&objs);
 

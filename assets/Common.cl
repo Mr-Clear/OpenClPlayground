@@ -9,4 +9,14 @@ struct Cell *cell(struct Cell* board, int2 boardSize, int2 coordinates)
     if (coordinates.x < 0 || coordinates.x >= boardSize.x || coordinates.y < 0 || coordinates.y >= boardSize.y)
         return &edgeCell;
     return &board[coordinates.x + boardSize.x * coordinates.y];
-};
+}
+
+struct Cell *cellF(struct Cell* board, int2 boardSize, float2 coordinates)
+{
+    return cell(board, boardSize, convert_int2(coordinates));
+}
+
+float2 rotateVector(float2 vec, float rad)
+{
+    return (float2)(vec.x * cos(rad) - vec.y * sin(rad), vec.x * sin(rad) + vec.y * cos(rad));
+}

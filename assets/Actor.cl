@@ -5,6 +5,11 @@
 
 bool printSizeof = true;
 
+float evaluateCell(struct Cell *cell)
+{
+    return cell->solid * -0.1f;
+}
+
 kernel
 void actor(__global struct Cell* board, int2 boardSize, __global struct Actor* actors, int actorSize,
            int generation)
@@ -17,6 +22,11 @@ void actor(__global struct Cell* board, int2 boardSize, __global struct Actor* a
         const int sc = sizeof(struct Cell);
         const int sa = sizeof(struct Actor);
         printf("OCL - sizeof(Cell) = %d, sizeof(Actor) = %d \n", sc, sa);
+
+        float2 t = (float2)(10, 0);
+        t = rotateVector(t, 0);
+        printf("Rotate: (%f, %f)", t.x, t.y);
+
         printSizeof = false;
     }
 
@@ -24,7 +34,10 @@ void actor(__global struct Cell* board, int2 boardSize, __global struct Actor* a
     {
         //printf("A %d: (%f,%f) - (%f,%f) %d\n", id, a->pos.x, a->pos.y, a->speed.x, a->speed.y, sizeof(struct Actor));
 
-        a->direction = rndNormalF(generation * 31337 + id, a->direction, 0.05);
+        struct Cell *ahead = cellF(board, boardSize, a->pos + rotateVector((float2)(50, 0), a->direction));
+        float sense = evaluateCell(ahead);
+
+        a->direction = rndNormalF(generation * 31337 + id, a->direction + sense, 0.05);
         a->speed = rndNormalF(generation * 7789 + id, a->speed * .99f + a->targetSpeed * .01f, 0.01);
         float2 speedVector = (float2)(cos(a->direction), sin(a->direction)) * a->speed;
         float2 next = a->pos + speedVector;
@@ -45,7 +58,7 @@ void actor(__global struct Cell* board, int2 boardSize, __global struct Actor* a
             a->pos = next;
         }
 
-        board[convert_int(a->pos.x) + boardSize.x * convert_int(a->pos.y)].trail += a->speed * 2;
+        cellF(board, boardSize, a->pos)->trail += a->speed * 2;
     }
 }
 
