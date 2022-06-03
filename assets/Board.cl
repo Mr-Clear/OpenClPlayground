@@ -42,8 +42,8 @@ void board(write_only image2d_t out, __global struct Cell* board, int2 size)
         }
 
 
-        const float4 trailColor = (float4)(1, 0, 0, 0);
-        float trail = min(1.f, max(0.f, c->trail));
+        const float4 trailColor = (float4)(c->trail / 10.f, c->trail / 500.f, c->trail / 1000.f, 0);
+        float trail = clamp(c->trail, 0.f, 1.f);
         color = color * (1.f - trail) + trailColor * trail;
 
         write_imagef(out, (int2)(gx, gy), color);

@@ -39,7 +39,7 @@ using uint = unsigned int;
 
 static const uint NUM_JSETS = 9;
 
-const int speed = 10;
+const int speed = 100;
 const int actorsCount = 10000;
 
 static const std::array<float, 16> matrix =
